@@ -1,0 +1,141 @@
+name: Update Formula
+
+# Triggered by a repository_dispatch event sent from the ekvii/apin release
+# workflow after it finishes publishing a new release.
+#
+# Expected payload:
+#   { "version": "0.2.0" }   (without the leading "v")
+on:
+  repository_dispatch:
+    types: [apin-release]
+
+  # Allow manual runs for testing / recovery.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to update to (without leading v, e.g. 0.2.0)"
+        required: true
+
+jobs:
+  update:
+    name: Update apin.rb to ${{ github.event.client_payload.version || inputs.version }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          VERSION="${{ github.event.client_payload.version || inputs.version }}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}"    >> "$GITHUB_OUTPUT"
+
+      - name: Fetch release asset SHAs
+        id: shas
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ASSETS=$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/ekvii/apin/releases/tags/${TAG}")
+
+          get_sha() {
+            echo "$ASSETS" | \
+              python3 -c "
+          import sys, json
+          name = '$1'
+          assets = json.load(sys.stdin)['assets']
+          match = next((a for a in assets if a['name'] == name), None)
+          if not match:
+              raise SystemExit(f'Asset not found: {name}')
+          print(match['digest'].removeprefix('sha256:'))
+          "
+          }
+
+          echo "macos_arm64=$(get_sha  "apin-v${VERSION}-macos-arm64")"     >> "$GITHUB_OUTPUT"
+          echo "macos_x86_64=$(get_sha "apin-v${VERSION}-macos-x86_64")"    >> "$GITHUB_OUTPUT"
+          echo "linux_arm64=$(get_sha  "apin-v${VERSION}-linux-arm64")"     >> "$GITHUB_OUTPUT"
+          echo "linux_x86_64=$(get_sha "apin-v${VERSION}-linux-x86_64")"    >> "$GITHUB_OUTPUT"
+
+      - name: Update Formula/apin.rb
+        env:
+          VERSION:      ${{ steps.ver.outputs.version }}
+          TAG:          ${{ steps.ver.outputs.tag }}
+          MACOS_ARM64:  ${{ steps.shas.outputs.macos_arm64 }}
+          MACOS_X86_64: ${{ steps.shas.outputs.macos_x86_64 }}
+          LINUX_ARM64:  ${{ steps.shas.outputs.linux_arm64 }}
+          LINUX_X86_64: ${{ steps.shas.outputs.linux_x86_64 }}
+        run: |
+          python3 - <<'EOF'
+          import os, pathlib
+
+          formula = pathlib.Path("Formula/apin.rb")
+          text = formula.read_text()
+
+          v   = os.environ["VERSION"]
+          tag = os.environ["TAG"]
+
+          # Line-by-line replacements tracking platform/arch context
+          lines = text.splitlines(keepends=True)
+          new_lines = []
+          i = 0
+          context = None  # tracks which platform block we are in
+          arch    = None  # tracks which arch block we are in
+
+          while i < len(lines):
+            line = lines[i]
+
+            # Detect platform context
+            if "on_macos" in line:
+              context = "macos"
+            elif "on_linux" in line:
+              context = "linux"
+
+            # Detect arch sub-context
+            if "on_arm" in line:
+              arch = "arm64"
+            elif "on_intel" in line:
+              arch = "x86_64"
+
+            # Replace url lines
+            if line.lstrip().startswith("url ") and context and arch:
+              key = f"{context}_{arch}"
+              new_url = (
+                f"https://github.com/ekvii/apin/releases/download/{tag}/"
+                f"apin-{tag}-{context}-{arch}"
+              )
+              indent = len(line) - len(line.lstrip())
+              line = " " * indent + f'url "{new_url}"\n'
+
+            # Replace sha256 lines
+            elif line.lstrip().startswith("sha256 ") and context and arch:
+              key = f"{context}_{arch}"
+              sha = os.environ[key.upper()]
+              indent = len(line) - len(line.lstrip())
+              line = " " * indent + f'sha256 "{sha}"\n'
+
+            # Replace version line
+            elif line.lstrip().startswith("version "):
+              indent = len(line) - len(line.lstrip())
+              line = " " * indent + f'version "{v}"\n'
+
+            new_lines.append(line)
+            i += 1
+
+          formula.write_text("".join(new_lines))
+          print("Formula updated successfully.")
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/apin.rb
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: update apin formula to v${{ steps.ver.outputs.version }}"
+          git push
