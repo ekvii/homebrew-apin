@@ -1,30 +1,30 @@
 class Apin < Formula
   desc "Terminal UI for navigating OpenAPI specs — fast, keyboard-driven, zero configuration"
   homepage "https://github.com/ekvii/apin"
-  version "0.4.8"
+  version "0.4.7"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/ekvii/apin/releases/download/v0.4.8/apin-v0.4.8-macos-arm64"
-      sha256 "fbf4bed9daa64f8129a4d884b9d505c2d285262e2d67c9036833b22288a3f4ba"
+      url "https://github.com/ekvii/apin/releases/download/v0.4.7/apin-v0.4.7-macos-arm64"
+      sha256 "9be670334d51a5db8438cdb477ceb12fabff258f3af4376e495337c7ea473cf5"
     end
 
     on_intel do
-      url "https://github.com/ekvii/apin/releases/download/v0.4.8/apin-v0.4.8-macos-x86_64"
-      sha256 "9ab512630d16a89f8adacf46697f77d29bc3e94e7139da475f567662d7146831"
+      url "https://github.com/ekvii/apin/releases/download/v0.4.7/apin-v0.4.7-macos-x86_64"
+      sha256 "369e1013b28433c16623e6d3830a1ffb038affe785246479f5b1514284dff080"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/ekvii/apin/releases/download/v0.4.8/apin-v0.4.8-linux-arm64"
-      sha256 "0dbbe722273c51525d52a36411949a88a3893dd72dc837bfb7e3ff484fedc6f6"
+      url "https://github.com/ekvii/apin/releases/download/v0.4.7/apin-v0.4.7-linux-arm64"
+      sha256 "2e9b270ca663d18609945425887f844eb346f39d43a8306926ccd34bc689f93d"
     end
 
     on_intel do
-      url "https://github.com/ekvii/apin/releases/download/v0.4.8/apin-v0.4.8-linux-x86_64"
-      sha256 "77e4176d603738ac1e4319f25c2bd21ea7c9b307e67d7fe05c07d58db128b74b"
+      url "https://github.com/ekvii/apin/releases/download/v0.4.7/apin-v0.4.7-linux-x86_64"
+      sha256 "4c4e5a002cd4071f040d26c29a676ab59543aafa1b94df6e196d8f3a397008e2"
     end
   end
 
